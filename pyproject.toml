@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forage"
+version = "0.1.0"
+description = "Local-first personal sample-library builder with CLAP semantic search"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  # Hard CLAP constraint: numpy must stay <2 (a later pip install can silently break this).
+  "numpy<2",
+  "torch>=2.4",
+  "torchaudio>=2.4",
+  "torchvision>=0.19",  # undeclared laion-clap import (FrozenBatchNorm2d); must be installed explicitly
+  "laion-clap>=1.1.7",
+  "typer>=0.20",
+  "sqlite-vec>=0.1.9",
+  "requests>=2.31",
+  "soundfile>=0.12",
+  "librosa>=0.10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.1"]
+
+[project.scripts]
+forage = "forage.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,14 @@
+# Natural-language test queries for the Phase 1 retrieval eval (one per line).
+# These are what you'll type to judge whether CLAP "feels good" on real material.
+# Edit freely to match how YOU would describe sounds you want.
+
+punchy kick drum
+tight snappy snare
+crisp closed hi hat
+warm rhodes chord with a short tail
+deep analog sub bass
+glassy bell tone
+wooden percussion hit
+dusty vinyl crackle texture
+bright noisy riser
+soft ambient drone
