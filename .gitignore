@@ -1,0 +1,36 @@
+# Secrets — Freesound API token lives here, never commit
+**/config.json
+config.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Conda / venv
+forage-env/
+.venv/
+venv/
+
+# Throwaway eval artifacts and downloaded audio (Phase 1)
+scratch/clips/
+scratch/*.wav
+scratch/*.log
+scratch/eval_report.txt
+# Machine-specific launcher (hardcoded conda path)
+run_eval.bat
+# Stray benchmark artifact from the planning research workflow
+vector_research_results.json
+
+# CLAP checkpoint cache (large, re-downloadable)
+*.pt
+
+# Local library data (audio + index live under FORAGE_HOME, but ignore any in-repo copies)
+samples/
+metadata/
+library.db

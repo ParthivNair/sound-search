@@ -1,0 +1,22 @@
+# Convenience env spec. For a guaranteed CPU-only torch install, prefer the
+# explicit two-step recipe in CONTRIBUTING.md (which is what was used to build
+# the working env). --extra-index-url below lets pip find the CPU torch wheels.
+name: forage
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - ffmpeg            # binary only (mp3/ogg decode fallback); does not touch numpy
+  - pip
+  - pip:
+      - "numpy<2"     # hard CLAP constraint
+      - --extra-index-url https://download.pytorch.org/whl/cpu
+      - "torch>=2.4"
+      - "torchaudio>=2.4"
+      - "torchvision>=0.19"   # undeclared laion-clap import
+      - "laion-clap>=1.1.7"
+      - "typer>=0.20"
+      - "sqlite-vec>=0.1.9"
+      - "requests>=2.31"
+      - "soundfile>=0.12"
+      - "librosa>=0.10"

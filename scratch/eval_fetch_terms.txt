@@ -1,0 +1,34 @@
+# Seed terms used to populate the Phase 1 eval set (one per line, '#' = comment).
+# Chosen to span your palette: drums, percussion, instruments, some FX.
+# fetch_eval_clips.py pulls a handful of <10s clips per term.
+
+# --- drums ---
+kick drum
+snare drum
+hi hat
+clap
+tom drum
+drum break
+
+# --- percussion ---
+shaker
+conga
+tambourine
+rim shot
+woodblock
+
+# --- instruments ---
+rhodes chord
+electric piano
+piano chord
+synth bass
+analog pad
+brass stab
+bell
+
+# --- fx / texture ---
+vinyl crackle
+riser
+impact hit
+whoosh
+ambient drone
