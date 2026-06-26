@@ -7,6 +7,7 @@ require >=3.11. An accidental ``python script.py`` under 3.8 should fail loud.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -53,3 +54,26 @@ def db_path() -> Path:
 
 def config_path() -> Path:
     return forage_home() / "config.json"
+
+
+def oauth_path() -> Path:
+    """Where the Freesound OAuth2 access/refresh tokens are cached (gitignored)."""
+    return forage_home() / "oauth.json"
+
+
+def _config_search_paths():
+    # Canonical location first, then the repo root (dev convenience — where the
+    # token was first dropped). Both are gitignored.
+    yield config_path()
+    yield Path(__file__).resolve().parents[2] / "config.json"
+
+
+def load_config() -> dict:
+    """Load config.json (freesound_token / freesound_client_id / _client_secret)."""
+    for p in _config_search_paths():
+        if p.exists():
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+    return {}

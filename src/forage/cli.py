@@ -30,10 +30,14 @@ app = typer.Typer(
 config_app = typer.Typer(no_args_is_help=True, help="Inspect Forage configuration.")
 app.add_typer(config_app, name="config")
 
+auth_app = typer.Typer(no_args_is_help=True, help="Freesound OAuth2 (needed to download originals).")
+app.add_typer(auth_app, name="auth")
+
 
 @config_app.command("show")
 def config_show() -> None:
-    """Show resolved paths and the pinned CLAP checkpoint."""
+    """Show resolved paths, the pinned CLAP checkpoint, and auth state."""
+    cfg = config.load_config()
     typer.echo(f"forage version : {__version__}")
     typer.echo(f"FORAGE_HOME    : {config.forage_home()}")
     typer.echo(f"samples        : {config.samples_dir()}")
@@ -41,6 +45,52 @@ def config_show() -> None:
     typer.echo(f"library.db     : {config.db_path()}")
     typer.echo(f"config.json    : {config.config_path()}")
     typer.echo(f"clap checkpoint: {config.CLAP_CHECKPOINT}")
+    typer.echo(f"freesound token: {'set' if cfg.get('freesound_token') else 'MISSING'}")
+    typer.echo(f"oauth client id: {'set' if cfg.get('freesound_client_id') else 'missing'}")
+    typer.echo(f"oauth session  : {'authorized' if config.oauth_path().exists() else 'not logged in'}")
+
+
+@auth_app.command("login")
+def auth_login() -> None:
+    """Authorize Forage to download Freesound originals (one-time, in browser)."""
+    import webbrowser
+
+    from .sources.freesound import FreesoundAuthError, FreesoundClient
+
+    client = FreesoundClient()
+    try:
+        url = client.authorize_url()
+    except FreesoundAuthError as e:
+        typer.secho(str(e), fg=typer.colors.RED)
+        raise typer.Exit(1)
+    typer.echo("Opening your browser to authorize Forage with Freesound:")
+    typer.echo(f"  {url}")
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
+    typer.echo("\nAfter approving, your browser is redirected to a URL containing `code=...`.")
+    code = typer.prompt("Paste the authorization code").strip()
+    try:
+        client.exchange_code(code)
+    except FreesoundAuthError as e:
+        typer.secho(f"Auth failed: {e}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    st = client.oauth_status()
+    typer.secho(f"Authorized (scope={st.get('scope')}). Token cached at {config.oauth_path()}",
+                fg=typer.colors.GREEN)
+
+
+@auth_app.command("status")
+def auth_status() -> None:
+    """Show whether downloads are authorized."""
+    from .sources.freesound import FreesoundClient
+
+    st = FreesoundClient().oauth_status()
+    if not st.get("authorized"):
+        typer.echo("Not authorized for downloads. Run `forage auth login`.")
+        raise typer.Exit(1)
+    typer.echo(f"Authorized. scope={st.get('scope')} expires_in={st.get('expires_in_s')}s")
 
 
 def _todo(phase: str) -> None:
@@ -51,10 +101,25 @@ def _todo(phase: str) -> None:
 @app.command()
 def grow(
     query: str = typer.Option(..., "--query", "-q", help="Search term to fetch from Freesound."),
-    count: int = typer.Option(5, "--count", "-n", help="How many candidates to fetch."),
+    count: int = typer.Option(5, "--count", "-n", help="How many NEW sounds to add."),
+    license: str = typer.Option(None, "--license", help="Only keep licenses matching, e.g. cc0 / by / free."),
 ) -> None:
-    """(Phase 3) Fetch CC sounds from Freesound, embed, and index them."""
-    _todo("Phase 3")
+    """Fetch CC sounds from Freesound (originals), embed, and index them."""
+    from . import grow as grow_mod
+    from .index import SqliteVecStore
+    from .sources.freesound import FreesoundAuthError
+
+    store = SqliteVecStore()
+    try:
+        kept, skipped = grow_mod.grow(
+            query, count, store=store,
+            license_filter=_license_filter(license),
+            progress=lambda s: typer.echo(s),
+        )
+    except FreesoundAuthError as e:
+        typer.secho(str(e), fg=typer.colors.RED)
+        raise typer.Exit(1)
+    typer.echo(f"Grew {kept} new sound(s); skipped {skipped}. Library total: {store.count()}")
 
 
 def _flags(meta: dict) -> str:
@@ -179,8 +244,21 @@ def reindex() -> None:
 
 @app.command()
 def doctor() -> None:
-    """(Phase 3) Reconcile orphaned files / sidecars / index rows."""
-    _todo("Phase 3")
+    """Reconcile orphaned files / sidecars / index rows (read-only report)."""
+    from . import grow as grow_mod
+
+    rep = grow_mod.doctor()
+    typer.echo(f"Indexed sounds            : {rep['indexed']}")
+    typer.echo(f"DB rows with missing audio: {len(rep['missing_audio'])}")
+    for x in rep["missing_audio"][:10]:
+        typer.echo(f"   missing audio: {x}")
+    typer.echo(f"Orphan sample files       : {len(rep['orphan_files'])}")
+    for x in rep["orphan_files"][:10]:
+        typer.echo(f"   orphan file: {x}")
+    typer.echo(f"Sidecars not indexed      : {len(rep['sidecars_not_indexed'])}")
+    ok = not (rep["missing_audio"] or rep["orphan_files"] or rep["sidecars_not_indexed"])
+    typer.secho("Library is consistent." if ok else "Inconsistencies found (see above; `forage reindex` can help).",
+                fg=typer.colors.GREEN if ok else typer.colors.YELLOW)
 
 
 if __name__ == "__main__":  # pragma: no cover
