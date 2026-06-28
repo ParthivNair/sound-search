@@ -30,6 +30,23 @@ CLAP_CHECKPOINT = "630k-audioset-best.pt"
 # checkpoint. The index schema is created from this value. (~114 ms/clip on CPU.)
 EMBEDDING_DIM: int = 512
 
+# Below this top-1 cosine score, `forage search` prints a gentle hint to run
+# `forage grow` — the brief's "nothing in the library matches -> go fetch" signal.
+# Heuristic and tunable; genuine CLAP text->audio hits on this palette sit well
+# above ~0.3, so 0.35 is a conservative "nothing strong matched" line.
+SEARCH_GAP_THRESHOLD: float = 0.35
+
+# A sound shorter than this is treated as a one-shot (vs a loop/phrase) by
+# `forage categorize`. Drives the one-shots/loops scope filter in the UI and the
+# default selection for SFZ kit export.
+ONESHOT_MS: int = 1500
+
+# Zero-shot category assignment: when the best CLAP cosine to any category prompt
+# is below this, the sound is left "uncategorized" rather than confidently wrong.
+# CLAP text<->audio cosines on this checkpoint are small in absolute terms, so the
+# default is permissive; tighten by feel after a spot-check.
+CATEGORIZE_THRESHOLD: float = 0.0
+
 
 def forage_home() -> Path:
     """Library root. User-visible by default so it can be added as a favorite

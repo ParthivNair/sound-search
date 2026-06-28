@@ -16,9 +16,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import audio, config, embed
-from .index import SqliteVecStore
+from .index import _BOOL_FIELDS, SqliteVecStore
 
 AUDIO_EXTS = {".wav", ".flac", ".aif", ".aiff", ".mp3", ".ogg"}
+
+# The minimum a sidecar must carry to be indexable + license-displayable. Derived
+# from the index's canonical bool-field set so the two never drift apart.
+REQUIRED_FIELDS = ("forage_id", "source", "file_hash", "filename", "title",
+                   "license_name", *_BOOL_FIELDS)
 
 
 def sha256_file(path) -> str:
@@ -92,6 +97,36 @@ def build_meta(path: Path, file_hash: str) -> dict:
         no_derivatives=False,
     )
     return base
+
+
+def validate_sidecar(meta) -> list[str]:
+    """Return a list of problems with a sidecar dict; empty list == valid."""
+    if not isinstance(meta, dict):
+        return ["not a JSON object"]
+    problems: list[str] = []
+    for fld in REQUIRED_FIELDS:
+        if fld not in meta:
+            problems.append(f"missing field '{fld}'")
+            continue
+        if fld in _BOOL_FIELDS:
+            if not isinstance(meta[fld], bool):
+                problems.append(f"field '{fld}' must be a boolean")
+        elif not (isinstance(meta[fld], str) and meta[fld].strip()):
+            problems.append(f"field '{fld}' must be a non-empty string")
+    if not isinstance(meta.get("tags", []), list):
+        problems.append("field 'tags' must be a list")
+    return problems
+
+
+def load_sidecar(path) -> tuple[dict | None, list[str]]:
+    """Read + parse + validate a sidecar. Returns (meta_or_None, problems): meta is
+    None only when the JSON is unreadable; a parsed-but-invalid sidecar is returned
+    (so callers can still see source/source_id) alongside its problems."""
+    try:
+        meta = json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception as e:  # unreadable / malformed JSON
+        return None, [f"unreadable JSON: {e}"]
+    return meta, validate_sidecar(meta)
 
 
 def write_sidecar(meta: dict) -> None:

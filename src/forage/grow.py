@@ -5,12 +5,13 @@ resumable (already-grown sounds are skipped).
 
 from __future__ import annotations
 
+import os
 import time
 from datetime import datetime, timezone
 
 from . import audio, config, embed, licensing
 from .index import SqliteVecStore
-from .library import sha256_file, write_sidecar
+from .library import load_sidecar, sha256_file, write_sidecar
 from .sources.freesound import FreesoundClient
 
 RATE_SECONDS = 1.2
@@ -135,3 +136,67 @@ def doctor(store=None) -> dict:
         "orphan_files": orphan_files,
         "sidecars_not_indexed": sidecars_not_indexed,
     }
+
+
+def reindex(store_factory=SqliteVecStore, embed_fn=None, progress=lambda s: None) -> dict:
+    """Rebuild library.db from the per-file sidecars, re-embedding each audio file.
+
+    Sidecars are the source of truth; the DB is derived. We build into a fresh temp
+    DB and atomically swap it in, so a crash mid-rebuild leaves the old index intact,
+    and a stale/corrupt checkpoint recorded in the old DB can't block the rebuild
+    (we never open the old DB — only the new one, which records the current checkpoint).
+
+    Re-embedding is deterministic for a given input + checkpoint on this machine, so
+    search ranking is identical after a reindex. (Bit-identity across torch/BLAS
+    upgrades is not guaranteed; reindexing after such an upgrade is expected.)
+
+    Validate-only: a malformed sidecar is skipped with a warning (no network repair).
+    """
+    embed_fn = embed_fn or embed.embed_audio
+    metadir = config.metadata_dir()
+    samples = config.samples_dir()
+    db = config.db_path()
+    tmp = db.with_name(db.stem + ".reindex-tmp.db")
+    if tmp.exists():
+        tmp.unlink()
+
+    counts = {"rebuilt": 0, "skipped_invalid": 0, "missing_audio": 0, "checkpoint_updated": 0}
+    store = store_factory(db_path=tmp)
+    try:
+        sidecars = sorted(metadir.glob("*.json")) if metadir.exists() else []
+        for p in sidecars:
+            meta, problems = load_sidecar(p)
+            if problems:
+                # Validate-only: skip bad sidecars.
+                # TODO(P4+): if meta and meta.get("source") == "freesound" and a source_id
+                # and a freesound_token are present, regenerate via
+                # FreesoundClient.get_sound(source_id) -> _meta_from_result -> write_sidecar.
+                counts["skipped_invalid"] += 1
+                progress(f"  ! skip invalid {p.stem}: {problems[0]}")
+                continue
+            apath = samples / meta["filename"]
+            if not apath.exists():
+                counts["missing_audio"] += 1
+                progress(f"  ! missing audio for {meta['forage_id']} ({meta['filename']})")
+                continue
+            dirty = False
+            if meta.get("checkpoint_id") != config.CLAP_CHECKPOINT:
+                progress(f"  ~ {meta['forage_id']}: re-embedding under {config.CLAP_CHECKPOINT}")
+                meta["checkpoint_id"] = config.CLAP_CHECKPOINT
+                meta["embedding_dim"] = config.EMBEDDING_DIM
+                counts["checkpoint_updated"] += 1
+                dirty = True
+            wave = audio.load_audio(apath)
+            meta["duration_ms"] = audio.duration_ms(wave)
+            vec = embed_fn(wave)
+            if store.add(meta, vec):
+                counts["rebuilt"] += 1
+                if dirty:
+                    write_sidecar(meta)
+            else:  # duplicate forage_id/file_hash across sidecars (shouldn't normally happen)
+                counts["skipped_invalid"] += 1
+                progress(f"  ! duplicate {meta['forage_id']} skipped")
+    finally:
+        store.close()
+    os.replace(tmp, db)  # atomic swap; old library.db replaced only on success
+    return counts

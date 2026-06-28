@@ -39,3 +39,32 @@ def parse_license(url: str | None) -> dict:
         name = "Unknown"
     f["license_name"] = name
     return f
+
+
+def attribution_line(meta: dict) -> str:
+    """One-line credit string. Falls back gracefully when fields are missing."""
+    who = meta.get("attribution_username") or "creator unknown"
+    link = meta.get("attribution_url") or meta.get("license_url") or "(no link)"
+    return f"Credit {who} ({link})"
+
+
+def obligations(meta: dict) -> list[str]:
+    """Human-readable 'what the producer must do', driven by the license name +
+    the four obligation flags. Used by `forage credits` to render the manifest."""
+    name = meta.get("license_name") or "Unknown"
+    if name == "CC0":
+        return ["No obligation — public-domain dedication (CC0). Credit appreciated, not required."]
+    if name == "Unknown":
+        return ["⚠ License unknown — verify terms before release; treat as all-rights-reserved until confirmed."]
+    out: list[str] = []
+    if meta.get("requires_attribution"):
+        out.append(f"{attribution_line(meta)} — attribution required.")
+    if meta.get("non_commercial"):
+        out.append("⚠ Non-commercial only — not for paid/commercial releases.")
+    if meta.get("no_derivatives"):
+        out.append("⚠ No derivatives — may not be modified/transformed.")
+    if meta.get("share_alike"):
+        out.append("Share-alike — derivatives must use the same license.")
+    if not out:  # recognized name but no flags set
+        out.append(f"See the {name} terms before release.")
+    return out

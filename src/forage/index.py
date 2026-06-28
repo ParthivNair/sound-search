@@ -30,7 +30,11 @@ _COLUMNS = (
     "forage_id", "source", "source_id", "file_hash", "filename", "title",
     "license_name", "license_url", "attribution_username", "attribution_url",
     *_BOOL_FIELDS, "tags", "duration_ms", "checkpoint_id", "embedding_dim", "added_at",
+    "category", "is_oneshot",
 )
+# Persisted as INTEGER (sqlite has no bool). `is_oneshot` may be NULL until a sound
+# has been categorized, so casting must tolerate None.
+_INT_FIELDS = (*_BOOL_FIELDS, "is_oneshot")
 
 
 @dataclass
@@ -88,13 +92,23 @@ class SqliteVecStore(VectorStore):
                 share_alike INTEGER, no_derivatives INTEGER,
                 tags TEXT, duration_ms INTEGER,
                 checkpoint_id TEXT, embedding_dim INTEGER, added_at TEXT,
+                category TEXT, is_oneshot INTEGER,
                 embedding BLOB)"""
         )
         self.db.execute(
             f"CREATE VIRTUAL TABLE IF NOT EXISTS vec_sounds USING vec0(embedding float[{self.dim}])"
         )
         self.db.execute("CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT)")
+        self._migrate()
         self.db.commit()
+
+    def _migrate(self) -> None:
+        """Idempotently add columns introduced after a DB was first created. Additive
+        and metadata-only on sqlite, so an older library.db gains them on next open."""
+        cols = {r["name"] for r in self.db.execute("PRAGMA table_info(sounds)").fetchall()}
+        for name, decl in (("category", "TEXT"), ("is_oneshot", "INTEGER")):
+            if name not in cols:
+                self.db.execute(f"ALTER TABLE sounds ADD COLUMN {name} {decl}")
 
     def _check_checkpoint(self) -> None:
         """Refuse to mix vectors from different checkpoints (different vector space)."""
@@ -129,6 +143,7 @@ class SqliteVecStore(VectorStore):
         m["tags"] = json.loads(row["tags"]) if row["tags"] else []
         for b in _BOOL_FIELDS:
             m[b] = bool(row[b])
+        m["is_oneshot"] = bool(row["is_oneshot"])  # NULL (not categorized) -> False
         return m
 
     def _meta_by_rowid(self, rowid: int) -> dict | None:
@@ -143,8 +158,11 @@ class SqliteVecStore(VectorStore):
 
         vec = self._prep(vector)
         values = [meta.get(c) for c in _COLUMNS]
-        values = [json.dumps(v) if c == "tags" else (int(v) if c in _BOOL_FIELDS else v)
-                  for c, v in zip(_COLUMNS, values)]
+        values = [
+            json.dumps(v) if c == "tags"
+            else (int(v) if (c in _INT_FIELDS and v is not None) else v)
+            for c, v in zip(_COLUMNS, values)
+        ]
         placeholders = ", ".join("?" for _ in _COLUMNS)
         try:
             cur = self.db.execute(
@@ -204,6 +222,18 @@ class SqliteVecStore(VectorStore):
 
     def has_hash(self, file_hash) -> bool:
         return self.db.execute("SELECT 1 FROM sounds WHERE file_hash=?", (file_hash,)).fetchone() is not None
+
+    def set_fields(self, forage_id: str, **kv) -> bool:
+        """In-place UPDATE of derived metadata (category / is_oneshot) without a
+        re-embed. Column names are whitelisted (never interpolated from caller input)."""
+        kv = {k: v for k, v in kv.items() if k in ("category", "is_oneshot")}
+        if not kv:
+            return False
+        kv = {k: (int(v) if (k == "is_oneshot" and v is not None) else v) for k, v in kv.items()}
+        sets = ", ".join(f"{k}=?" for k in kv)
+        cur = self.db.execute(f"UPDATE sounds SET {sets} WHERE forage_id=?", (*kv.values(), forage_id))
+        self.db.commit()
+        return cur.rowcount > 0
 
     def list_all(self) -> list[dict]:
         rows = self.db.execute("SELECT * FROM sounds ORDER BY id").fetchall()
