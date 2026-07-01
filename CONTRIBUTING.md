@@ -60,7 +60,8 @@ conda run -n forage python -c "import numpy,torch,laion_clap,soundfile,librosa,t
 > **Critical:** use **Homebrew Python 3.12** — not the python.org installer and
 > not Apple's system Python. Two reasons: `numpy<2` (a hard CLAP constraint) has
 > no wheels past 3.12, so 3.13+ forces a source build; and the python.org macOS
-> installers ship `sqlite3` **without loadable-extension support**
+> installers (and GitHub Actions' `setup-python` macOS builds) ship `sqlite3`
+> **without loadable-extension support**
 > (`Connection.enable_load_extension` missing), which crashes `sqlite-vec` at
 > load time. Homebrew's Python has it enabled.
 

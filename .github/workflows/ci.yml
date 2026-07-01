@@ -34,23 +34,44 @@ jobs:
       - name: Run test suite (offline, headless Qt)
         run: python -m pytest -q
 
+  # macOS deliberately does NOT use actions/setup-python: its macOS CPython
+  # builds (like the python.org installers) ship sqlite3 WITHOUT
+  # loadable-extension support (`Connection.enable_load_extension` missing),
+  # which crashes sqlite-vec loading in src/forage/index.py and takes down
+  # every index-touching test. Homebrew's python@3.12 is compiled with
+  # extension loading enabled, so we install that, gate on the capability
+  # before spending time on dependencies, and restore the pip cache by hand
+  # (actions/cache replaces the pip cache lost by dropping setup-python).
   test-macos:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
+      - name: Install Homebrew Python (sqlite3 with loadable extensions)
+        run: brew install python@3.12
 
-      - name: Install dependencies
+      # Fail fast, before the (slow) dependency install, if this CPython
+      # cannot load sqlite extensions -- the whole suite depends on it.
+      - name: Assert sqlite3 supports loadable extensions
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[gui,dev]"
+          /opt/homebrew/bin/python3.12 -c "import sqlite3; assert hasattr(sqlite3.connect(':memory:'), 'enable_load_extension'), 'this CPython build lacks sqlite3 loadable-extension support (enable_load_extension missing); sqlite-vec cannot load -- use Homebrew python@3.12'"
+
+      - name: Restore pip cache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/pip
+          key: pip-macos-py3.12-${{ hashFiles('pyproject.toml') }}
+
+      # Homebrew python is PEP-668 externally-managed: bare `pip install`
+      # refuses to run, so everything goes through a project venv.
+      - name: Create venv and install dependencies
+        run: |
+          /opt/homebrew/bin/python3.12 -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -e ".[gui,dev]"
 
       - name: Run test suite (offline, headless Qt)
-        run: python -m pytest -q
+        run: .venv/bin/python -m pytest -q
 
 # PySide6 in pyproject.toml is pinned per-platform via environment markers
 # (sys_platform == 'win32' gets a <6.8 cap; every other platform gets an
