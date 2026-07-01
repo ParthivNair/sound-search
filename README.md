@@ -31,14 +31,26 @@ Early development. Building toward v1 in phases, each individually testable:
 
 ## Quick start
 
-Requires **Python ≥3.11** — see [CONTRIBUTING.md](CONTRIBUTING.md) for the
-Windows/Anaconda environment recipe (do **not** use the system Python 3.8).
+Requires **Python ≥3.11** — see [CONTRIBUTING.md](CONTRIBUTING.md) for both the
+Windows/Anaconda and macOS (Homebrew Python + venv) environment recipes (do
+**not** use the system Python 3.8).
+
+Windows:
 
 ```bat
 conda activate forage
 pip install -e .
 forage config show
 python scratch\clap_smoke.py
+```
+
+macOS:
+
+```zsh
+source .venv/bin/activate
+pip install -e ".[gui,dev]"
+forage config show
+python scratch/clap_smoke.py
 ```
 
 ## Finding sounds (categories, UI, browse folders)
@@ -51,12 +63,13 @@ forage categorize                 :: tag every sound kick/snare/hat/bass/synth/v
 forage list --tags kick           :: filter from the CLI
 forage ui                         :: desktop app: search, audition, filter by category, drag onto a track
 forage browse                     :: build a Documents\Forage\browse\<Category>\ tree (favorite it in Cakewalk's Media Browser)
+                                   :: (macOS: ~/Documents/Forage/browse/<Category>/)
 ```
 
 `forage ui` needs the optional GUI dependency: `pip install -e ".[gui]"` (PySide6).
 The app lets you audition, filter, and **drag a sample straight onto a Cakewalk
-track**; if your host rejects the drop, use the **Reveal in Explorer** button and
-drag from there.
+track**; if your host rejects the drop, use the **Reveal in Finder** button (macOS)
+or **Reveal in Explorer** button (Windows) and drag from there.
 
 ## Instruments — play one-shots as MIDI notes
 
@@ -69,7 +82,7 @@ forage export-sfz --category kick --category snare
 forage export-sfz                              :: all one-shots, chromatic from MIDI 36
 ```
 
-This writes `Documents\Forage\instruments\<name>.sfz` (absolute paths to your WAVs).
+This writes `Documents\Forage\instruments\<name>.sfz` (macOS: `~/Documents/Forage/instruments/<name>.sfz`) with absolute paths to your WAVs.
 To play it in **Cakewalk Next**:
 
 - **Recommended** — install the free [sforzando](https://www.plogue.com/products/sforzando.html)
@@ -77,7 +90,7 @@ To play it in **Cakewalk Next**:
   Each sound triggers on its own MIDI note.
 - **No install** — Cakewalk Next's built-in **XSampler** (one sound, set the root note)
   or **Pad Controller** (up to 16 sounds, one per pad) also play WAVs from MIDI; drag
-  the WAVs in from `Documents\Forage\browse\…`.
+  the WAVs in from `Documents\Forage\browse\…` (macOS: `~/Documents/Forage/browse/…`).
 
 ## Licensing
 

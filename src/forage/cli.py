@@ -343,7 +343,7 @@ def export_sfz(
 
 @app.command()
 def browse() -> None:
-    """Rebuild the categorized browse/ folder tree (human-readable, for Explorer/Cakewalk)."""
+    """Rebuild the categorized browse/ folder tree (human-readable, for Finder/Explorer/Cakewalk)."""
     from . import browse as browse_mod
     from .index import SqliteVecStore
 

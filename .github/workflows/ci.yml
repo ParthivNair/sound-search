@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# The offline env vars below are load-bearing, not decorative: no test in this
+# suite loads the real CLAP model (every embedding call is mocked out), so the
+# suite must never reach out and download the multi-gigabyte checkpoint. Setting
+# these at workflow scope means any future test that accidentally triggers a
+# real model fetch hard-fails fast in CI instead of silently pulling gigabytes
+# on every run.
+env:
+  QT_QPA_PLATFORM: offscreen
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+
+jobs:
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[gui,dev]"
+
+      - name: Run test suite (offline, headless Qt)
+        run: python -m pytest -q
+
+  test-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[gui,dev]"
+
+      - name: Run test suite (offline, headless Qt)
+        run: python -m pytest -q
+
+# PySide6 in pyproject.toml is pinned per-platform via environment markers
+# (sys_platform == 'win32' gets a <6.8 cap; every other platform gets an
+# unbounded floor), so each OS above resolves its own compatible Qt build
+# automatically from the same "[gui,dev]" install command -- no per-job
+# special-casing needed.

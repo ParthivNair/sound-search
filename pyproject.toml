@@ -27,9 +27,15 @@ dependencies = [
 dev = ["pytest>=7", "ruff>=0.1"]
 # The desktop UI (`forage ui`) is optional — PySide6 is ~100MB and the CLI/grow/search
 # must stay usable headless. QtMultimedia (audition) ships in PySide6 >=6.6. Capped
-# below 6.8: PySide6 6.11 fails to load QtCore on this Windows 10 box ("procedure not
-# found" — it needs a newer VC++ runtime). 6.7.x is the verified-good range here.
-gui = ["PySide6>=6.6,<6.8"]
+# below 6.8 on Windows only: PySide6 6.11 fails to load QtCore on the Windows 10 dev
+# box ("procedure not found" — it needs a newer VC++ runtime). 6.7.x is the
+# verified-good range there. On macOS (Apple Silicon) both 6.7.3 and 6.11.1 are
+# verified working (QtCore loads, QtMultimedia uses the FFmpeg backend, GUI tests
+# pass offscreen), so the cap is skipped there.
+gui = [
+  "PySide6>=6.6,<6.8; sys_platform == 'win32'",
+  "PySide6>=6.6; sys_platform != 'win32'",
+]
 
 [project.scripts]
 forage = "forage.cli:app"

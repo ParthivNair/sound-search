@@ -1,8 +1,8 @@
 """Categorized, human-readable mirror of the library for the OS / DAW file browser.
 
 Regenerates ``<FORAGE_HOME>/browse/<Category>/<friendly>_<forage_id>.<ext>`` as
-hardlinks (cheap, no extra disk; same volume) with a copy fallback, so Explorer and
-Cakewalk's Media Browser become navigable by *kind* instead of by opaque freesound id.
+hardlinks (cheap, no extra disk; same volume) with a copy fallback, so Finder/Explorer
+and Cakewalk's Media Browser become navigable by *kind* instead of by opaque freesound id.
 Idempotent: the tree is wiped and rebuilt each run, so renames / deletions / re-runs
 of `forage categorize` are reflected.
 """

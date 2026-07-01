@@ -1,5 +1,6 @@
 """Results table with native drag-OUT: dropping selected rows onto a Cakewalk track
-deposits the actual WAV file(s) via a standard Windows CF_HDROP (QMimeData URLs).
+deposits the actual WAV file(s) via QMimeData URLs, which Qt maps to the native
+drag type per platform (CF_HDROP on Windows, NSPasteboard file URLs on macOS).
 
 We start the drag manually from mouseMoveEvent rather than relying on QTableView's
 built-in heuristic (which only starts a drag when the press lands on an *already
@@ -61,7 +62,7 @@ class SampleTableView(QTableView):
         if not paths:
             return
         mime = QMimeData()
-        mime.setUrls([QUrl.fromLocalFile(str(p)) for p in paths])  # -> CF_HDROP on Windows
+        mime.setUrls([QUrl.fromLocalFile(str(p)) for p in paths])  # Qt -> native drag type (CF_HDROP on Windows, NSPasteboard file URLs on macOS)
         drag = QDrag(self)
         drag.setMimeData(mime)
         drag.exec(Qt.CopyAction)  # COPY: never moves the library file

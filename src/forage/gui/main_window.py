@@ -22,7 +22,7 @@ from .models_logic import category_counts
 from .player import AuditionPlayer
 from .results_model import SampleTableModel
 from .results_view import SampleTableView
-from .reveal import reveal_command
+from .reveal import reveal_command, reveal_label
 
 LICENSES = [("Any license", None), ("CC0", "cc0"), ("CC-BY", "by"), ("No-obligation", "free")]
 SCOPES = [("All", "all"), ("One-shots", "oneshot"), ("Loops", "loop")]
@@ -127,7 +127,7 @@ class MainWindow(QMainWindow):
         v.addWidget(self._title)
         row = QHBoxLayout()
         for label, slot in [("▶ Play", self._play_selected), ("■ Stop", self._player.stop),
-                            ("Similar", self._do_similar), ("Reveal in Explorer", self._reveal),
+                            ("Similar", self._do_similar), (reveal_label(), self._reveal),
                             ("Add to kit", self._add_to_kit), ("Export kit .sfz", self._export_kit)]:
             b = QPushButton(label)
             b.clicked.connect(slot)
